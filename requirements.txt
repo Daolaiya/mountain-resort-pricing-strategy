@@ -1,0 +1,15 @@
+# Core data science stack
+pandas>=2.0,<3
+numpy>=1.24,<3
+matplotlib>=3.7,<4
+seaborn>=0.12,<1
+scikit-learn>=1.3,<2
+
+# Required by pandas.read_html() in notebook 02 (state population/area scrape)
+lxml>=4.9
+html5lib>=1.1
+beautifulsoup4>=4.12
+
+# Notebook runtime (optional but typical for this project)
+jupyter>=1.0
+ipykernel>=6.25

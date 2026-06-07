@@ -24,7 +24,8 @@ def save_file(data, fname, dname):
 
         yesno = None
         while yesno != "Y" and yesno != "N":
-            yesno = input('Do you want to overwrite? (Y/N)').strip()[0].capitalize()
+            response = input('Do you want to overwrite? (Y/N)').strip()
+            yesno = response[0].capitalize() if response else ''
             if yesno == "Y":
                 print(f'Writing file. "{fpath}"')
                 _save_file(data, fpath)
@@ -46,8 +47,8 @@ def _save_file(data, fpath):
     assert (fpath[-4:] in valid_ftypes), "Invalid file type.  Use '.csv' or '.pkl'"
     
     # Figure out what kind of file we're dealing with by name
-    if fpath[-3:] == 'csv':
+    if fpath.endswith('.csv'):
         data.to_csv(fpath, index=False)
-    elif fpath[-3:] == 'pkl':
+    elif fpath.endswith('.pkl'):
         with open(fpath, 'wb') as f:
             pickle.dump(data, f)

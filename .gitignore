@@ -60,4 +60,3 @@ Desktop.ini
 
 # Optional: uncomment to ignore saved models (regenerate via notebook 04)
 # models/*.pkl
-NOTEBOOK_STEPS.txt

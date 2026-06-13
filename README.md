@@ -14,8 +14,8 @@ pip install -r requirements.txt
 ## Notebook run order
 Run the notebooks in order from the `notebooks/` directory:
 
-1. `02_data_wrangling.ipynb` — produces `data/ski_data_cleaned.csv` and `data/state_summary.csv`
-2. `03_exploratory_data_analysis.ipynb` — produces `data/ski_data_step3_features.csv`
+1. `02_data_wrangling.ipynb` — produces `data/processed/ski_data_cleaned.csv` and `data/processed/state_summary.csv`
+2. `03_exploratory_data_analysis.ipynb` — produces `data/processed/ski_data_step3_features.csv`
 3. `04_preprocessing_and_training.ipynb` — trains models and saves `models/ski_resort_pricing_model.pkl`
 4. `05_modeling.ipynb` — loads the saved model and runs business scenario analysis
 

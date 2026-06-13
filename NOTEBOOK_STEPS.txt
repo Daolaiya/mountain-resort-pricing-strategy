@@ -1,0 +1,219 @@
+MOUNTAIN RESORT PRICING STRATEGY — NOTEBOOK WORKFLOW OUTLINE
+================================================================
+
+Project data layout:
+  data/raw/         — original source data (do not overwrite)
+  data/processed/   — notebook-generated datasets
+  data/external/    — third-party / fallback reference data
+  models/           — saved model artifacts
+  images/           — notebook figures
+  notebooks/        — analysis notebooks and library/sb_utils.py
+
+Business goal: Build a model to predict adult weekend ski ticket prices from resort
+facilities, then use it to advise Big Mountain Resort on pricing and investment scenarios.
+
+Run notebooks in order from the notebooks/ directory.
+Prerequisites: pip install -r requirements.txt
+
+Pipeline inputs and outputs:
+  02: data/raw/ski_resort_data.csv
+      -> data/processed/ski_data_cleaned.csv, data/processed/state_summary.csv, (uses data/external/usa_states_sub.csv fallback)
+  03: cleaned data + state summary -> data/processed/ski_data_step3_features.csv
+  04: feature data -> models/ski_resort_pricing_model.pkl
+  05: model + feature data -> business scenario analysis (no new artifact)
+
+
+================================================================
+NOTEBOOK 02 — DATA WRANGLING
+================================================================
+
+Purpose: Load, audit, clean, and structure raw resort data; choose the target
+variable; create state-level summary statistics.
+
+Steps:
+
+1. Import pandas, matplotlib, seaborn, os, and library.sb_utils.save_file.
+
+2. Load ../data/raw/ski_resort_data.csv (330 rows initially).
+
+3. Initial audit
+   - info() and head() on the dataframe.
+   - Confirm Big Mountain Resort is present.
+   - Count missing values per column (fastEight, ticket prices are sparse).
+
+4. Categorical exploration (Name, Region, state)
+   - Check duplicate names (Crystal Mountain in two states — not true duplicates).
+   - Count Region != state mismatches; tabulate regional naming (e.g. Sierra Nevada in CA).
+   - Bar charts of resort counts by region and state.
+   - Average and boxplot ticket prices by state (melt weekday/weekend into one column).
+
+5. Numeric exploration
+   - describe() and histograms for all numeric columns.
+   - Analyze overlap of missing weekday vs weekend prices.
+
+6. Cleaning and corrections
+   - Fix Silverton Mountain SkiableTerrain_ac (26819 -> 1819) via name-based lookup.
+   - Drop fastEight (mostly missing / zero variance).
+   - Drop row with yearsOpen = 2019 (year-of-opening entered as years-open).
+   - Defer fixing resorts with no price data (e.g. Heavenly).
+
+7. State summary (before dropping price-missing rows)
+   - groupby state: resort count, total skiable area, days open, terrain parks, night skiing.
+
+8. Drop rows where both AdultWeekday and AdultWeekend are missing (~14%).
+
+9. Replot histograms on cleaned data.
+
+10. External state data (population and area)
+    - Try pd.read_html from pinned Wikipedia oldid URL.
+    - On failure, load ../data/external/usa_states_sub.csv fallback.
+    - Extract/clean state, population, area; strip bracket suffixes from names.
+    - Merge into state_summary.
+
+11. Target selection
+    - Scatter AdultWeekday vs AdultWeekend; check Montana parity.
+    - Drop AdultWeekday; drop rows missing AdultWeekend.
+    - Target: AdultWeekend. Final count: 277 rows.
+
+12. Audit row-level missingness (quantized missing pattern noted).
+
+13. Save via save_file:
+    - data/processed/ski_data_cleaned.csv
+    - data/processed/state_summary.csv
+
+14. Summary (Q3): document drops, fixes, target, row count.
+
+
+================================================================
+NOTEBOOK 03 — EXPLORATORY DATA ANALYSIS
+================================================================
+
+Purpose: Explore state market context and resort features; engineer variables;
+decide how to use state information in modeling.
+
+Steps:
+
+1. Import pandas, numpy, matplotlib, seaborn, PCA, scale, save_file.
+
+2. Load data/processed/ski_data_cleaned.csv and data/processed/state_summary.csv.
+
+3. Rank states by area, population, resorts, skiable area, night skiing, days open.
+
+4. Resort density features
+   - resorts_per_100kcapita, resorts_per_100ksq_mile.
+   - Drop raw population and area from state_summary.
+
+5. PCA on scaled state features
+   - Verify scaling (ddof=0 vs ddof=1 lesson).
+   - Cumulative variance plot; 2D PCA scatter with state labels.
+   - Add average AdultWeekend by state (size/hue by price quartile).
+   - Handle Rhode Island missing price for visualization.
+   - Conclusion: no clear state-price cluster; keep density features; treat states equally.
+
+6. Merge state_summary into ski_data.
+
+7. Engineer state-share ratios (zero denominators replaced with NaN):
+   - resort skiable area / state total skiable area
+   - resort days open / state total days open
+   - resort terrain parks / state total terrain parks
+   - resort night skiing / state total night skiing
+
+8. Correlation heatmap; scatterplots vs AdultWeekend.
+
+9. Lift/run ratio features:
+   - total_chairs_runs_ratio, total_chairs_skiable_ratio
+   - fastQuads_runs_ratio, fastQuads_skiable_ratio
+
+10. Save data/processed/ski_data_step3_features.csv.
+
+11. Summary (Q1): features, state handling, multicollinearity warnings.
+
+
+================================================================
+NOTEBOOK 04 — PREPROCESSING AND TRAINING
+================================================================
+
+Purpose: Build baseline and ML models; select best model; persist for business use.
+
+Steps:
+
+1. Import sklearn stack and save_file.
+
+2. Load data/processed/ski_data_step3_features.csv.
+
+3. Hold out Big Mountain Resort from training set.
+
+4. Train/test split 70/30 (random_state=47).
+   - Drop Name, state, Region from features.
+
+5. Baseline DummyRegressor (predict mean)
+   - Manual R², MAE, MSE; compare sklearn metrics and argument-order lesson.
+   - Baseline test MAE ~ $19.
+
+6. Manual linear regression workflow
+   - Median impute (from train), StandardScaler, LinearRegression.
+   - Test MAE ~ $9; repeat with mean imputation.
+
+7. sklearn Pipeline: SimpleImputer -> StandardScaler -> LinearRegression
+   - Verify matches manual results.
+
+8. Add SelectKBest(f_regression)
+   - Compare k=10 vs k=15; 5-fold cross_validate.
+   - GridSearchCV over k; best k=8.
+   - Inspect coefficients (vertical_drop, Snow Making_ac, fastQuads, etc.).
+
+9. Random forest pipeline
+   - Default CV; GridSearchCV over n_estimators, imputer, scaling on/off.
+   - Best: median imputation, no scaling.
+
+10. Final selection via cross-validated MAE — random forest wins (~$1 better).
+
+11. Learning curve on selected RF model — performance plateaus ~40-50 samples.
+
+12. Save best model with metadata to models/ski_resort_pricing_model.pkl.
+
+13. Summary (Q1): baseline, models, preprocessing, final choice.
+
+
+================================================================
+NOTEBOOK 05 — MODELING (BUSINESS SCENARIOS)
+================================================================
+
+Purpose: Apply model to Big Mountain; benchmark facilities; simulate scenarios.
+
+Steps:
+
+1. Load models/ski_resort_pricing_model.pkl (check version/sklearn match).
+
+2. Load data/processed/ski_data_step3_features.csv; extract Big Mountain row.
+
+3. Refit model on all resorts except Big Mountain (avoid self-price bias).
+
+4. Cross-validate refitted model MAE.
+
+5. Predict supported price for Big Mountain vs actual (~$96 vs $81).
+
+6. plot_compare histograms for key features vs market (overall and Montana-only):
+   ticket price, vertical drop, snow making, chairs, fast quads, runs,
+   longest run, trams, skiable terrain.
+
+7. Scenario analysis (350k visitors, 5 tickets each):
+   Scenario 1: close 1-10 runs — price/revenue curves.
+   Scenario 2: +1 run, +150 ft vertical, +1 chair — ticket/revenue uplift.
+   Scenario 3: scenario 2 + 2 acres snow making — negligible extra effect.
+   Scenario 4: +0.2 mi longest run, +4 acres snow making — no effect.
+
+8. Summary (Q1): pricing gap, presentation approach, scenario recommendations.
+
+9. Further work (Q2): missing visitor/cost data, deployment options.
+
+
+================================================================
+KEY DECISIONS
+================================================================
+
+Target:        AdultWeekend
+Holdout:       Big Mountain excluded from training in 04 and 05 refit
+State labels:  Not one-hot encoded; density and share-ratio features used
+Best model:    Random forest, median imputation, no scaling
+Main finding:  Big Mountain may be underpriced vs modeled market support
